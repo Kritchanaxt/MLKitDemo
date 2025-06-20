@@ -14,5 +14,5 @@ data class StrokeData(
 data class PointData(
     val x: Float,
     val y: Float,
-//    val t: Long
+
 )
