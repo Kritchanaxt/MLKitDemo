@@ -13,10 +13,10 @@ buildscript {
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        mavenLocal()
-    }
-}
+//allprojects {
+//    repositories {
+//        google()
+//        mavenCentral()
+//        mavenLocal()
+//    }
+//}

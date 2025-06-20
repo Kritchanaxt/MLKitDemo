@@ -67,6 +67,12 @@
                     android:layout_weight="1"
                     android:text="Import" />
                     
+                <Button
+                    android:id="@+id/convert_from_image_button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Convert Image" />
                     
             </LinearLayout>
         </LinearLayout>

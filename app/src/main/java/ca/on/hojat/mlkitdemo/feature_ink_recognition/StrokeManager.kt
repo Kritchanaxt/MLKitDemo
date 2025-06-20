@@ -15,6 +15,7 @@ import com.google.mlkit.vision.digitalink.Ink.Stroke
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
+
 /** Manages the recognition logic and the content that has been added to the current page.  */
 class StrokeManager {
     /** Interface to register to be notified of changes in the recognized content.  */
@@ -88,13 +89,16 @@ class StrokeManager {
     )
 
     private fun commitResult() {
-        recognitionTask!!.result()?.let {
-            content.add(it)
-            status = "Successful recognition: " + it.text
-            if (clearCurrentInkAfterRecognition) {
-                resetCurrentInk()
-            }
+        recognitionTask!!.result()?.let { result ->
+            // เคลียร์ค่าหมึกที่วาดค้างและรายการ content เก่าทั้งหมด
+            resetCurrentInk()
+            content.clear()
 
+            // เพิ่มผลลัพธ์ที่ได้จากการ recognize ทั้งหน้าจอเข้าไปเป็นรายการเดียว
+            content.add(result)
+            status = "Successful recognition: " + result.text
+
+            // แจ้งเตือน UI ให้วาดใหม่
             contentChangedListener?.onContentChanged()
         }
     }
@@ -208,14 +212,31 @@ class StrokeManager {
 
     // Recognition-related.
     fun recognize(): Task<String?> {
-        if (!stateChangedSinceLastRequest || inkBuilder.isEmpty) {
-            status = "No recognition, ink unchanged or empty"
+        // 1. รวบรวมลายเส้นทั้งหมดบนหน้าจอ
+        val inkToRecognizeBuilder = Ink.builder()
+        // - จาก content ที่มีอยู่ (เช่น ที่ import มา)
+        content.forEach { recognizedInk ->
+            recognizedInk.ink.strokes.forEach { stroke ->
+                inkToRecognizeBuilder.addStroke(stroke)
+            }
+        }
+        // - จากลายเส้นที่กำลังวาดค้างอยู่
+        inkBuilder.build().strokes.forEach { stroke ->
+            inkToRecognizeBuilder.addStroke(stroke)
+        }
+        val inkToRecognize = inkToRecognizeBuilder.build()
+
+        // 2. ตรวจสอบว่ามีลายเส้นให้ประมวลผลหรือไม่
+        if (inkToRecognize.strokes.isEmpty()) {
+            status = "No ink to recognize."
             return Tasks.forResult(null)
         }
         if (modelManager.recognizer == null) {
             status = "Recognizer not set"
             return Tasks.forResult(null)
         }
+
+        // 3. เริ่มกระบวนการประมวลผล (เหมือนเดิม แต่ใช้ ink ที่รวบรวมมาใหม่)
         return modelManager
             .checkIsModelDownloaded()
             .onSuccessTask { result: Boolean? ->
@@ -229,7 +250,7 @@ class StrokeManager {
                 recognitionTask =
                     RecognitionTask(
                         modelManager.recognizer,
-                        inkBuilder.build()
+                        inkToRecognize // <--- ใช้ตัวแปรใหม่นี้
                     )
                 uiHandler.sendMessageDelayed(
                     uiHandler.obtainMessage(TIMEOUT_TRIGGER),

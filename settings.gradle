@@ -1,2 +1,19 @@
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        // เพิ่มบรรทัดนี้เข้าไป
+        maven { url 'https://jitpack.io' }
+    }
+}
 rootProject.name = "MLKit Demo"
 include ':app'

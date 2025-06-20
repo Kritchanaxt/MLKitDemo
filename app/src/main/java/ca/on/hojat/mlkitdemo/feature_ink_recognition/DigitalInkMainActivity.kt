@@ -27,6 +27,19 @@ import com.google.mlkit.vision.digitalink.Ink
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
+import org.opencv.core.Mat
+import org.opencv.core.MatOfPoint
+import org.opencv.core.Size
+import org.opencv.imgproc.Imgproc
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+
+import org.opencv.android.BaseLoaderCallback
+import org.opencv.android.LoaderCallbackInterface
+import org.opencv.core.CvException
+
 /** Main activity which creates a StrokeManager and connects it to the DrawingView. */
 class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedModelsChangedListener {
 
@@ -46,6 +59,47 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
                 }
             }
         }
+
+    // Launcher สำหรับเลือกรูปภาพ
+    private val pickImageLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                result.data?.data?.also { uri ->
+                    try {
+                        // แปลง Uri เป็น Bitmap
+                        val source = ImageDecoder.createSource(contentResolver, uri)
+                        val decodedBitmap = ImageDecoder.decodeBitmap(source)
+
+                        // *** เพิ่มบรรทัดนี้: สร้างสำเนาของ Bitmap ให้เป็นแบบ Mutable และใช้ ARGB_8888 ***
+                        val bitmap = decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+                        // เริ่มกระบวนการแปลงด้วย bitmap ที่แก้ไขได้
+                        val ink = convertBitmapToInk(bitmap)
+                        strokeManager.importInk(ink) // ใช้ฟังก์ชัน import เดิม
+                        Toast.makeText(this, "Image converted!", Toast.LENGTH_SHORT).show()
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error converting image: ${e.message}")
+                        Toast.makeText(this, "Failed to convert image.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+    private val mLoaderCallback = object : BaseLoaderCallback(this) {
+        override fun onManagerConnected(status: Int) {
+            when (status) {
+                LoaderCallbackInterface.SUCCESS -> {
+                    Log.i(TAG, "OpenCV loaded successfully")
+                    // เมื่อโหลดสำเร็จ ให้เปิดใช้งานปุ่ม Convert Image
+                    binding.convertFromImageButton.isEnabled = true
+                }
+                else -> {
+                    super.onManagerConnected(status)
+                }
+            }
+        }
+    }
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +139,14 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             }
         strokeManager.reset()
 
+//        // Initialize OpenCV
+//        if (OpenCVLoader.initDebug()) { // <--- แก้ไขเป็น initDebug()
+//            Log.i(TAG, "OpenCV loaded successfully")
+//        } else {
+//            Log.e(TAG, "OpenCV initialization failed!")
+//            Toast.makeText(this, "OpenCV failed to load!", Toast.LENGTH_LONG).show()
+//        }
+
         // register some other listeners
         binding.downloadButton.setOnClickListener {
             strokeManager.download()
@@ -107,6 +169,12 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         binding.importButton.setOnClickListener {
             openFilePicker()
         }
+
+        binding.convertFromImageButton.setOnClickListener {
+            openImagePicker()
+        }
+        // ปิดปุ่มไว้ก่อน รอให้ OpenCV โหลดเสร็จ
+        binding.convertFromImageButton.isEnabled = false
 
     }
 
@@ -267,6 +335,14 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         importInkLauncher.launch(intent)
     }
 
+    // ฟังก์ชันใหม่สำหรับเปิดหน้าเลือกรูปภาพ
+    private fun openImagePicker() {
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
+            type = "image/*"
+        }
+        pickImageLauncher.launch(intent)
+    }
+
     // ฟังก์ชันสำหรับ Import
     private fun importInkFromFile(uri: Uri) {
         try {
@@ -293,6 +369,72 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         } catch (e: Exception) {
             Log.e(TAG, "Error importing file: ${e.message}")
             Toast.makeText(this, "Failed to import file.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // In DigitalInkMainActivity.kt
+
+    private fun convertBitmapToInk(bitmap: Bitmap): Ink {
+        // 1. แปลง Bitmap เป็น Mat (Matrix) ของ OpenCV
+        val originalMat = Mat()
+        Utils.bitmapToMat(bitmap, originalMat)
+
+        // 2. Pre-processing
+        val grayMat = Mat()
+        Imgproc.cvtColor(originalMat, grayMat, Imgproc.COLOR_BGR2GRAY) // แปลงเป็น Grayscale
+
+        val blurredMat = Mat()
+        Imgproc.GaussianBlur(grayMat, blurredMat, Size(5.0, 5.0), 0.0) // ลด Noise
+
+        // 3. Canny Edge Detection
+        val edgesMat = Mat()
+        // ค่า threshold (50, 150) อาจต้องปรับเปลี่ยนเพื่อให้เหมาะกับรูปภาพแต่ละประเภท
+        Imgproc.Canny(blurredMat, edgesMat, 50.0, 150.0)
+
+        // 4. Find Contours
+        val contours = mutableListOf<MatOfPoint>()
+        val hierarchy = Mat()
+        Imgproc.findContours(
+            edgesMat,
+            contours,
+            hierarchy,
+            Imgproc.RETR_EXTERNAL, // หาลายเส้นรอบนอกสุด
+            Imgproc.CHAIN_APPROX_SIMPLE // ลดจำนวนจุดในเส้นโค้งให้กระชับขึ้น
+        )
+
+        // 5. แปลง Contours เป็น Ink
+        val inkBuilder = Ink.builder()
+        contours.forEach { contour ->
+            // กรอง Contour ที่เล็กเกินไป (เป็น noise) ออก
+            if (Imgproc.contourArea(contour) > 100) {
+                val strokeBuilder = Ink.Stroke.builder()
+                contour.toList().forEach { point ->
+                    // สร้าง Ink.Point โดยกำหนด timestamp เป็น 0 เพราะไม่มีข้อมูลเวลา
+                    strokeBuilder.addPoint(Ink.Point.create(point.x.toFloat(), point.y.toFloat(), 0))
+                }
+                inkBuilder.addStroke(strokeBuilder.build())
+            }
+        }
+
+        // ปล่อย memory ที่ Mat ใช้ไป
+        originalMat.release()
+        grayMat.release()
+        blurredMat.release()
+        edgesMat.release()
+        hierarchy.release()
+        contours.forEach { it.release() }
+
+        return inkBuilder.build()
+    }
+
+    public override fun onResume() {
+        super.onResume()
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization")
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION, this, mLoaderCallback)
+        } else {
+            Log.d(TAG, "OpenCV library found inside package. Using it!")
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS)
         }
     }
 
