@@ -63,22 +63,21 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             }
         }
 
-    // Launcher สำหรับเลือกรูปภาพ
+    // Launcher for selecting images
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 result.data?.data?.also { uri ->
                     try {
-                        // แปลง Uri เป็น Bitmap
+                        // Convert Uri to Bitmap
                         val source = ImageDecoder.createSource(contentResolver, uri)
                         val decodedBitmap = ImageDecoder.decodeBitmap(source)
 
-                        // *** เพิ่มบรรทัดนี้: สร้างสำเนาของ Bitmap ให้เป็นแบบ Mutable และใช้ ARGB_8888 ***
                         val bitmap = decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-                        // เริ่มกระบวนการแปลงด้วย bitmap ที่แก้ไขได้
+                        // Start the conversion process with an editable bitmap.
                         val ink = convertBitmapToInk(bitmap)
-                        strokeManager.importInk(ink) // ใช้ฟังก์ชัน import เดิม
+                        strokeManager.importInk(ink)
                         Toast.makeText(this, "Image converted!", Toast.LENGTH_SHORT).show()
 
                     } catch (e: Exception) {
@@ -94,7 +93,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             when (status) {
                 LoaderCallbackInterface.SUCCESS -> {
                     Log.i(TAG, "OpenCV loaded successfully")
-                    // เมื่อโหลดสำเร็จ ให้เปิดใช้งานปุ่ม Convert Image
+                    // When loading is complete, enable the Convert Image button.
                     binding.convertFromImageButton.isEnabled = true
                 }
                 else -> {
@@ -177,10 +176,9 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         binding.convertFromImageButton.setOnClickListener {
             openImagePicker()
         }
-        // ปิดปุ่มไว้ก่อน รอให้ OpenCV โหลดเสร็จ
+        // Close the button first, wait for OpenCV to finish loading.
         binding.convertFromImageButton.isEnabled = false
 
-        // เพิ่ม Listener สำหรับปุ่ม Import SVG
         binding.importSvgButton.setOnClickListener {
             openSvgFilePicker()
         }
@@ -284,7 +282,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         languageAdapter.notifyDataSetChanged()
     }
 
-    // ฟังก์ชันสำหรับ Export
+    // Function for Export
     private fun exportInkToFile() {
         val ink = binding.drawingView.getAllStrokesAsInk()
         if (ink.strokes.isEmpty()) {
@@ -292,7 +290,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             return
         }
 
-        // แปลง Ink object เป็น data class ที่สร้างไว้
+        // Convert Ink object to created data class.
         val inkData = InkData(
             strokes = ink.strokes.map { stroke ->
                 StrokeData(
@@ -308,7 +306,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         saveJsonToFile(jsonString)
     }
 
-    // ฟังก์ชันสำหรับบันทึกไฟล์ JSON โดยใช้ MediaStore
+    // Function to save a JSON file using MediaStore.
     private fun saveJsonToFile(jsonString: String) {
         val fileName = "InkDrawing_${System.currentTimeMillis()}.json"
         val contentValues = ContentValues().apply {
@@ -335,7 +333,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         }
     }
 
-    // ฟังก์ชันสำหรับเปิดหน้าเลือกไฟล์
+    // Function to open the file selection page.
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -344,7 +342,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         importInkLauncher.launch(intent)
     }
 
-    // ฟังก์ชันใหม่สำหรับเปิดหน้าเลือกรูปภาพ
+    // New function to open image selection page
     private fun openImagePicker() {
         val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
             type = "image/*"
@@ -352,7 +350,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         pickImageLauncher.launch(intent)
     }
 
-    // ฟังก์ชันสำหรับ Import
+    // Import function
     private fun importInkFromFile(uri: Uri) {
         try {
             val inputStream = contentResolver.openInputStream(uri)
@@ -362,7 +360,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             val gson = Gson()
             val inkData = gson.fromJson(jsonString, InkData::class.java)
 
-            // แปลง InkData กลับเป็น Ink object ของ ML Kit
+            // Convert InkData back to ML Kit's Ink object.
             val inkBuilder = Ink.builder()
             inkData.strokes.forEach { strokeData ->
                 val strokeBuilder = Ink.Stroke.builder()
@@ -372,7 +370,6 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
                 inkBuilder.addStroke(strokeBuilder.build())
             }
 
-            // ส่ง Ink ที่ได้ไปให้ StrokeManager
             strokeManager.importInk(inkBuilder.build())
 
         } catch (e: Exception) {
@@ -381,10 +378,8 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         }
     }
 
-    // In DigitalInkMainActivity.kt
-
     private fun convertBitmapToInk(bitmap: Bitmap): Ink {
-        // 1. แปลง Bitmap เป็น Mat (Matrix) ของ OpenCV
+        // 1. Convert Bitmap to OpenCV Mat (Matrix)
         val originalMat = Mat()
         Utils.bitmapToMat(bitmap, originalMat)
 
@@ -397,7 +392,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
 
         // 3. Canny Edge Detection
         val edgesMat = Mat()
-        // ค่า threshold (50, 150) อาจต้องปรับเปลี่ยนเพื่อให้เหมาะกับรูปภาพแต่ละประเภท
+        // The threshold value (50, 150) may need to be adjusted to suit different image types.
         Imgproc.Canny(blurredMat, edgesMat, 50.0, 150.0)
 
         // 4. Find Contours
@@ -407,25 +402,25 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             edgesMat,
             contours,
             hierarchy,
-            Imgproc.RETR_EXTERNAL, // หาลายเส้นรอบนอกสุด
-            Imgproc.CHAIN_APPROX_SIMPLE // ลดจำนวนจุดในเส้นโค้งให้กระชับขึ้น
+            Imgproc.RETR_EXTERNAL, // Find the outermost line.
+            Imgproc.CHAIN_APPROX_SIMPLE // Reduce the number of points in the curve to make it more compact.
         )
 
-        // 5. แปลง Contours เป็น Ink
+        // 5. Convert Contours to Ink
         val inkBuilder = Ink.builder()
         contours.forEach { contour ->
-            // กรอง Contour ที่เล็กเกินไป (เป็น noise) ออก
+            // Filter out too small (noise) contours.
             if (Imgproc.contourArea(contour) > 100) {
                 val strokeBuilder = Ink.Stroke.builder()
                 contour.toList().forEach { point ->
-                    // สร้าง Ink.Point โดยกำหนด timestamp เป็น 0 เพราะไม่มีข้อมูลเวลา
+                    // Create Ink.Point with timestamp set to 0 because there is no time data.
                     strokeBuilder.addPoint(Ink.Point.create(point.x.toFloat(), point.y.toFloat(), 0))
                 }
                 inkBuilder.addStroke(strokeBuilder.build())
             }
         }
 
-        // ปล่อย memory ที่ Mat ใช้ไป
+        // Release memory used by Mat
         originalMat.release()
         grayMat.release()
         blurredMat.release()
@@ -439,7 +434,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
     private fun openSvgFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            // ระบุ MIME type สำหรับไฟล์ SVG
+            // Specify MIME type for SVG file.
             type = "image/svg+xml"
         }
         importSvgLauncher.launch(intent)
@@ -447,24 +442,23 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
 
     private fun importSvgFromFile(uri: Uri) {
         try {
-            // 1. อ่านไฟล์ SVG จาก InputStream
+            // 1. Read SVG file from InputStream
             val inputStream = contentResolver.openInputStream(uri)
             val svg = SVG.getFromInputStream(inputStream)
 
-            // 2. เตรียม Canvas เพื่อวาด SVG ลงบน Bitmap
-            // กำหนดขนาดของ Bitmap (อาจใช้ขนาดจาก SVG เองหรือกำหนดค่าคงที่)
+            // 2. Prepare the Canvas to draw SVG on Bitmap.
             val width = svg.documentWidth.takeIf { it > 0 }?.toInt() ?: 1024
             val height = svg.documentHeight.takeIf { it > 0 }?.toInt() ?: 1024
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            // 3. Render (วาด) SVG ลงบน Canvas ของเรา
+            // 3. Render (draw) SVG onto our Canvas.
             svg.renderToCanvas(canvas)
 
-            // 4. *** นำ Bitmap ที่ได้จาก SVG ไปใช้ซ้ำกับฟังก์ชันเดิมของเรา ***
+            // 4. Reuse the obtained Bitmap from SVG with our original function
             val ink = convertBitmapToInk(bitmap)
 
-            // 5. นำ Ink ที่ได้ไปแสดงผล
+            // 5. Take the resulting Ink and display it.
             strokeManager.importInk(ink)
             Toast.makeText(this, "SVG Imported successfully!", Toast.LENGTH_SHORT).show()
 

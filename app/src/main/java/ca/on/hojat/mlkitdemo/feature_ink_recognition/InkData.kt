@@ -1,16 +1,16 @@
 package ca.on.hojat.mlkitdemo.feature_ink_recognition
 
-// Data class สำหรับเก็บข้อมูลของ Stroke ทั้งหมด
+// Data class to store all Stroke data.
 data class InkData(
     val strokes: List<StrokeData>
 )
 
-// Data class สำหรับเก็บข้อมูลของแต่ละเส้น (Stroke)
+// Data class for storing data for each stroke.
 data class StrokeData(
     val points: List<PointData>
 )
 
-// Data class สำหรับเก็บข้อมูลของแต่ละจุด (Point)
+// Data class for storing data of each point (Point)
 data class PointData(
     val x: Float,
     val y: Float,

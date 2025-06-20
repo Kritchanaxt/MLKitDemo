@@ -90,15 +90,15 @@ class StrokeManager {
 
     private fun commitResult() {
         recognitionTask!!.result()?.let { result ->
-            // เคลียร์ค่าหมึกที่วาดค้างและรายการ content เก่าทั้งหมด
+            // Clear all pending ink values ​​and old content items.
             resetCurrentInk()
             content.clear()
 
-            // เพิ่มผลลัพธ์ที่ได้จากการ recognize ทั้งหน้าจอเข้าไปเป็นรายการเดียว
+            // Add the results of the recognition of the entire screen into a single list.
             content.add(result)
             status = "Successful recognition: " + result.text
 
-            // แจ้งเตือน UI ให้วาดใหม่
+            // Notify UI to redraw
             contentChangedListener?.onContentChanged()
         }
     }
@@ -212,21 +212,19 @@ class StrokeManager {
 
     // Recognition-related.
     fun recognize(): Task<String?> {
-        // 1. รวบรวมลายเส้นทั้งหมดบนหน้าจอ
+        // 1. Collect all the lines on the screen.
         val inkToRecognizeBuilder = Ink.builder()
-        // - จาก content ที่มีอยู่ (เช่น ที่ import มา)
         content.forEach { recognizedInk ->
             recognizedInk.ink.strokes.forEach { stroke ->
                 inkToRecognizeBuilder.addStroke(stroke)
             }
         }
-        // - จากลายเส้นที่กำลังวาดค้างอยู่
         inkBuilder.build().strokes.forEach { stroke ->
             inkToRecognizeBuilder.addStroke(stroke)
         }
         val inkToRecognize = inkToRecognizeBuilder.build()
 
-        // 2. ตรวจสอบว่ามีลายเส้นให้ประมวลผลหรือไม่
+        // 2. Check if there are lines to process.
         if (inkToRecognize.strokes.isEmpty()) {
             status = "No ink to recognize."
             return Tasks.forResult(null)
@@ -236,7 +234,7 @@ class StrokeManager {
             return Tasks.forResult(null)
         }
 
-        // 3. เริ่มกระบวนการประมวลผล (เหมือนเดิม แต่ใช้ ink ที่รวบรวมมาใหม่)
+        // 3. Start the processing process (same as before, but using the newly collected ink).
         return modelManager
             .checkIsModelDownloaded()
             .onSuccessTask { result: Boolean? ->
@@ -250,7 +248,7 @@ class StrokeManager {
                 recognitionTask =
                     RecognitionTask(
                         modelManager.recognizer,
-                        inkToRecognize // <--- ใช้ตัวแปรใหม่นี้
+                        inkToRecognize
                     )
                 uiHandler.sendMessageDelayed(
                     uiHandler.obtainMessage(TIMEOUT_TRIGGER),
@@ -269,11 +267,9 @@ class StrokeManager {
     }
 
     fun importInk(ink: Ink) {
-        reset() // เคลียร์ลายเส้นเดิมทั้งหมด
-        // เพิ่มลายเส้นที่ import เข้ามาใน content
-        // โดยกำหนดให้ text ที่ได้จากการ recognize เป็นค่าว่างไปก่อน
+        reset() // Clear all the original lines.
         content.add(RecognizedInk(ink, ""))
-        contentChangedListener?.onContentChanged() // แจ้งเตือน View ให้วาดใหม่
+        contentChangedListener?.onContentChanged() // Notify View to redraw
         status = "Ink imported successfully."
     }
 
