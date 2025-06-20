@@ -7,9 +7,9 @@
     <ca.on.hojat.mlkitdemo.feature_ink_recognition.DrawingView
         android:id="@+id/drawing_view"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
+        android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#80FFFFFF" />
+        android:background="#FFFFFF" />
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -17,63 +17,85 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical">
 
             <ca.on.hojat.mlkitdemo.feature_ink_recognition.StatusTextView
                 android:id="@+id/status_text_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:padding="8dp"
                 android:text="Status text..."
                 android:textIsSelectable="true" />
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:orientation="horizontal">
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="8dp">
 
-                <Button
-                    android:id="@+id/download_button"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Download" />
+                    android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/recognize_button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Recognize" />
+                    <Button
+                        android:id="@+id/recognize_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Recognize"
+                        android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/clear_button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Clear" />
-                    
-                <Button
-                    android:id="@+id/export_button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Export" />
+                    <Button
+                        android:id="@+id/clear_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Clear"
+                        android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/import_button"
-                    android:layout_width="0dp"
+                    <Button
+                        android:id="@+id/export_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Export"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Import" />
-                    
-                <Button
-                    android:id="@+id/convert_from_image_button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Convert Image" />
-                    
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/import_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Import"
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/import_svg_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Import SVG"
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/convert_from_image_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Convert Image"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
@@ -84,8 +106,10 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
 
             <Spinner
                 android:id="@+id/languages_spinner"
@@ -94,12 +118,21 @@
                 android:layout_weight="3" />
 
             <Button
+                android:id="@+id/download_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:text="Download"
+                android:textSize="12sp" />
+
+            <Button
                 android:id="@+id/delete_button"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Delete model" />
-                
+                android:layout_weight="1.5"
+                android:text="Delete model"
+                android:textSize="12sp" />
+
         </LinearLayout>
     </FrameLayout>
 </LinearLayout>

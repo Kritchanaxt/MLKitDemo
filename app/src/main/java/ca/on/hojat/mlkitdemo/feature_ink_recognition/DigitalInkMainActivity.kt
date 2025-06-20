@@ -40,6 +40,9 @@ import org.opencv.android.BaseLoaderCallback
 import org.opencv.android.LoaderCallbackInterface
 import org.opencv.core.CvException
 
+import com.caverock.androidsvg.SVG
+import android.graphics.Canvas
+
 /** Main activity which creates a StrokeManager and connects it to the DrawingView. */
 class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedModelsChangedListener {
 
@@ -101,6 +104,15 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         }
     }
 
+    private val importSvgLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                result.data?.data?.also { uri ->
+                    importSvgFromFile(uri)
+                }
+            }
+        }
+
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDigitalInkMainKotlinBinding.inflate(layoutInflater)
@@ -139,14 +151,6 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             }
         strokeManager.reset()
 
-//        // Initialize OpenCV
-//        if (OpenCVLoader.initDebug()) { // <--- แก้ไขเป็น initDebug()
-//            Log.i(TAG, "OpenCV loaded successfully")
-//        } else {
-//            Log.e(TAG, "OpenCV initialization failed!")
-//            Toast.makeText(this, "OpenCV failed to load!", Toast.LENGTH_LONG).show()
-//        }
-
         // register some other listeners
         binding.downloadButton.setOnClickListener {
             strokeManager.download()
@@ -175,6 +179,11 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         }
         // ปิดปุ่มไว้ก่อน รอให้ OpenCV โหลดเสร็จ
         binding.convertFromImageButton.isEnabled = false
+
+        // เพิ่ม Listener สำหรับปุ่ม Import SVG
+        binding.importSvgButton.setOnClickListener {
+            openSvgFilePicker()
+        }
 
     }
 
@@ -425,6 +434,46 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         contours.forEach { it.release() }
 
         return inkBuilder.build()
+    }
+
+    private fun openSvgFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // ระบุ MIME type สำหรับไฟล์ SVG
+            type = "image/svg+xml"
+        }
+        importSvgLauncher.launch(intent)
+    }
+
+    private fun importSvgFromFile(uri: Uri) {
+        try {
+            // 1. อ่านไฟล์ SVG จาก InputStream
+            val inputStream = contentResolver.openInputStream(uri)
+            val svg = SVG.getFromInputStream(inputStream)
+
+            // 2. เตรียม Canvas เพื่อวาด SVG ลงบน Bitmap
+            // กำหนดขนาดของ Bitmap (อาจใช้ขนาดจาก SVG เองหรือกำหนดค่าคงที่)
+            val width = svg.documentWidth.takeIf { it > 0 }?.toInt() ?: 1024
+            val height = svg.documentHeight.takeIf { it > 0 }?.toInt() ?: 1024
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            // 3. Render (วาด) SVG ลงบน Canvas ของเรา
+            svg.renderToCanvas(canvas)
+
+            // 4. *** นำ Bitmap ที่ได้จาก SVG ไปใช้ซ้ำกับฟังก์ชันเดิมของเรา ***
+            val ink = convertBitmapToInk(bitmap)
+
+            // 5. นำ Ink ที่ได้ไปแสดงผล
+            strokeManager.importInk(ink)
+            Toast.makeText(this, "SVG Imported successfully!", Toast.LENGTH_SHORT).show()
+
+            inputStream?.close()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error importing SVG file: ${e.message}")
+            Toast.makeText(this, "Failed to import SVG file.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     public override fun onResume() {
