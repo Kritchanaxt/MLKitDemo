@@ -147,6 +147,25 @@ class DrawingView @JvmOverloads constructor(
         redrawContent()
     }
 
+    /**
+     * รวบรวมลายเส้นทั้งหมด (ทั้งที่ recognize แล้วและที่กำลังวาดอยู่)
+     * ให้อยู่ในรูปแบบ Ink object เดียว
+     */
+    fun getAllStrokesAsInk(): Ink {
+        val inkBuilder = Ink.builder()
+        // 1. เอารายเส้นที่ถูก recognize ไปแล้วจาก strokeManager
+        strokeManager.getContent().forEach { recognizedInk ->
+            recognizedInk.ink.strokes.forEach { stroke ->
+                inkBuilder.addStroke(stroke)
+            }
+        }
+        // 2. เอารายเส้นปัจจุบันที่ยังไม่ถูก recognize
+        strokeManager.currentInk.strokes.forEach { stroke ->
+            inkBuilder.addStroke(stroke)
+        }
+        return inkBuilder.build()
+    }
+
     companion object {
         private const val TAG = "MLKD.DrawingView"
         private const val STROKE_WIDTH_DP = 3

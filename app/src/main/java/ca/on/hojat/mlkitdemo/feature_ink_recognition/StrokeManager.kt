@@ -12,6 +12,9 @@ import ca.on.hojat.mlkitdemo.feature_ink_recognition.RecognitionTask.RecognizedI
 import com.google.mlkit.vision.digitalink.Ink
 import com.google.mlkit.vision.digitalink.Ink.Stroke
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
 /** Manages the recognition logic and the content that has been added to the current page.  */
 class StrokeManager {
     /** Interface to register to be notified of changes in the recognized content.  */
@@ -242,6 +245,15 @@ class StrokeManager {
             .addOnSuccessListener { downloadedLanguageTags: Set<String> ->
                 downloadedModelsChangedListener?.onDownloadedModelsChanged(downloadedLanguageTags)
             }
+    }
+
+    fun importInk(ink: Ink) {
+        reset() // เคลียร์ลายเส้นเดิมทั้งหมด
+        // เพิ่มลายเส้นที่ import เข้ามาใน content
+        // โดยกำหนดให้ text ที่ได้จากการ recognize เป็นค่าว่างไปก่อน
+        content.add(RecognizedInk(ink, ""))
+        contentChangedListener?.onContentChanged() // แจ้งเตือน View ให้วาดใหม่
+        status = "Ink imported successfully."
     }
 
     companion object {

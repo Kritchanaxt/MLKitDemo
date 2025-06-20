@@ -14,6 +14,19 @@ import com.google.common.collect.ImmutableSortedSet
 import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModelIdentifier
 import java.util.Locale
 
+import android.app.Activity
+import android.content.ContentValues
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.gson.Gson
+import com.google.mlkit.vision.digitalink.Ink
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
 /** Main activity which creates a StrokeManager and connects it to the DrawingView. */
 class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedModelsChangedListener {
 
@@ -23,6 +36,16 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
     @VisibleForTesting
     val strokeManager = StrokeManager()
     private lateinit var languageAdapter: ArrayAdapter<ModelLanguageContainer>
+
+
+    private val importInkLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                result.data?.data?.also { uri ->
+                    importInkFromFile(uri)
+                }
+            }
+        }
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,6 +99,15 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
         binding.deleteButton.setOnClickListener {
             strokeManager.deleteActiveModel()
         }
+
+        binding.exportButton.setOnClickListener {
+            exportInkToFile()
+        }
+
+        binding.importButton.setOnClickListener {
+            openFilePicker()
+        }
+
     }
 
     private class ModelLanguageContainer
@@ -173,6 +205,95 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             container.downloaded = downloadedLanguageTags.contains(container.languageTag)
         }
         languageAdapter.notifyDataSetChanged()
+    }
+
+    // ฟังก์ชันสำหรับ Export
+    private fun exportInkToFile() {
+        val ink = binding.drawingView.getAllStrokesAsInk()
+        if (ink.strokes.isEmpty()) {
+            Toast.makeText(this, "Nothing to export.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // แปลง Ink object เป็น data class ที่สร้างไว้
+        val inkData = InkData(
+            strokes = ink.strokes.map { stroke ->
+                StrokeData(
+                    points = stroke.points.map { point ->
+                        PointData(point.x, point.y)
+                    }
+                )
+            }
+        )
+
+        val gson = Gson()
+        val jsonString = gson.toJson(inkData)
+        saveJsonToFile(jsonString)
+    }
+
+    // ฟังก์ชันสำหรับบันทึกไฟล์ JSON โดยใช้ MediaStore
+    private fun saveJsonToFile(jsonString: String) {
+        val fileName = "InkDrawing_${System.currentTimeMillis()}.json"
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/MyInkDrawings")
+            }
+        }
+
+        val resolver = contentResolver
+        val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+
+        uri?.let {
+            try {
+                resolver.openOutputStream(it).use { outputStream ->
+                    outputStream?.write(jsonString.toByteArray())
+                    Toast.makeText(this, "Exported to Downloads/MyInkDrawings", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving file: ${e.message}")
+                Toast.makeText(this, "Failed to export file.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // ฟังก์ชันสำหรับเปิดหน้าเลือกไฟล์
+    private fun openFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+        }
+        importInkLauncher.launch(intent)
+    }
+
+    // ฟังก์ชันสำหรับ Import
+    private fun importInkFromFile(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            val jsonString = reader.readText()
+
+            val gson = Gson()
+            val inkData = gson.fromJson(jsonString, InkData::class.java)
+
+            // แปลง InkData กลับเป็น Ink object ของ ML Kit
+            val inkBuilder = Ink.builder()
+            inkData.strokes.forEach { strokeData ->
+                val strokeBuilder = Ink.Stroke.builder()
+                strokeData.points.forEach { pointData ->
+                    strokeBuilder.addPoint(Ink.Point.create(pointData.x, pointData.y, 0))
+                }
+                inkBuilder.addStroke(strokeBuilder.build())
+            }
+
+            // ส่ง Ink ที่ได้ไปให้ StrokeManager
+            strokeManager.importInk(inkBuilder.build())
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error importing file: ${e.message}")
+            Toast.makeText(this, "Failed to import file.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     companion object {

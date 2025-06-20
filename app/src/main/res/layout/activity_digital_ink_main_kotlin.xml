@@ -52,6 +52,22 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Clear" />
+                    
+                <Button
+                    android:id="@+id/export_button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Export" />
+
+                <Button
+                    android:id="@+id/import_button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Import" />
+                    
+                    
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
@@ -77,6 +93,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Delete model" />
+                
         </LinearLayout>
     </FrameLayout>
 </LinearLayout>
