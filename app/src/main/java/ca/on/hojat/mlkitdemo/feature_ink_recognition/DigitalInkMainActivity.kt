@@ -43,6 +43,16 @@ import org.opencv.core.CvException
 import com.caverock.androidsvg.SVG
 import android.graphics.Canvas
 
+import org.opencv.core.Core
+import org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C
+import org.opencv.imgproc.Imgproc.THRESH_BINARY_INV
+import org.opencv.imgproc.Imgproc.RETR_LIST
+import org.opencv.imgproc.Imgproc.CHAIN_APPROX_SIMPLE
+import org.opencv.imgproc.Imgproc.adaptiveThreshold
+import org.opencv.imgproc.Imgproc.morphologyEx
+import org.opencv.imgproc.Imgproc.MORPH_OPEN
+import org.opencv.core.Point
+
 /** Main activity which creates a StrokeManager and connects it to the DrawingView. */
 class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedModelsChangedListener {
 
@@ -63,7 +73,6 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             }
         }
 
-    // Launcher for selecting images
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -111,6 +120,29 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
                 }
             }
         }
+
+    private val pickIdCardLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                result.data?.data?.also { uri ->
+                    try {
+                        val source = ImageDecoder.createSource(contentResolver, uri)
+                        val decodedBitmap = ImageDecoder.decodeBitmap(source)
+                        val bitmap = decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+                        // Call the new function created for the ID card.
+                        val ink = convertIdCardToInk(bitmap)
+                        strokeManager.importInk(ink)
+                        Toast.makeText(this, "ID Card processed!", Toast.LENGTH_SHORT).show()
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error processing ID card image: ${e.message}")
+                        Toast.makeText(this, "Failed to process ID card.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -181,6 +213,10 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
 
         binding.importSvgButton.setOnClickListener {
             openSvgFilePicker()
+        }
+
+        binding.recognizeIdButton.setOnClickListener {
+            openIdCardPicker()
         }
 
     }
@@ -379,23 +415,23 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
     }
 
     private fun convertBitmapToInk(bitmap: Bitmap): Ink {
-        // 1. Convert Bitmap to OpenCV Mat (Matrix)
+        // Convert Bitmap to OpenCV Mat (Matrix)
         val originalMat = Mat()
         Utils.bitmapToMat(bitmap, originalMat)
 
-        // 2. Pre-processing
+        // Pre-processing
         val grayMat = Mat()
         Imgproc.cvtColor(originalMat, grayMat, Imgproc.COLOR_BGR2GRAY) // แปลงเป็น Grayscale
 
         val blurredMat = Mat()
         Imgproc.GaussianBlur(grayMat, blurredMat, Size(5.0, 5.0), 0.0) // ลด Noise
 
-        // 3. Canny Edge Detection
+        // Canny Edge Detection
         val edgesMat = Mat()
         // The threshold value (50, 150) may need to be adjusted to suit different image types.
         Imgproc.Canny(blurredMat, edgesMat, 50.0, 150.0)
 
-        // 4. Find Contours
+        // Find Contours
         val contours = mutableListOf<MatOfPoint>()
         val hierarchy = Mat()
         Imgproc.findContours(
@@ -406,7 +442,7 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             Imgproc.CHAIN_APPROX_SIMPLE // Reduce the number of points in the curve to make it more compact.
         )
 
-        // 5. Convert Contours to Ink
+        // Convert Contours to Ink
         val inkBuilder = Ink.builder()
         contours.forEach { contour ->
             // Filter out too small (noise) contours.
@@ -442,23 +478,23 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
 
     private fun importSvgFromFile(uri: Uri) {
         try {
-            // 1. Read SVG file from InputStream
+            // Read SVG file from InputStream
             val inputStream = contentResolver.openInputStream(uri)
             val svg = SVG.getFromInputStream(inputStream)
 
-            // 2. Prepare the Canvas to draw SVG on Bitmap.
+            // Prepare the Canvas to draw SVG on Bitmap.
             val width = svg.documentWidth.takeIf { it > 0 }?.toInt() ?: 1024
             val height = svg.documentHeight.takeIf { it > 0 }?.toInt() ?: 1024
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            // 3. Render (draw) SVG onto our Canvas.
+            // Render (draw) SVG onto our Canvas.
             svg.renderToCanvas(canvas)
 
-            // 4. Reuse the obtained Bitmap from SVG with our original function
+            // Reuse the obtained Bitmap from SVG with our original function
             val ink = convertBitmapToInk(bitmap)
 
-            // 5. Take the resulting Ink and display it.
+            // Take the resulting Ink and display it.
             strokeManager.importInk(ink)
             Toast.makeText(this, "SVG Imported successfully!", Toast.LENGTH_SHORT).show()
 
@@ -469,6 +505,75 @@ class DigitalInkMainActivity : AppCompatActivity(), StrokeManager.DownloadedMode
             Toast.makeText(this, "Failed to import SVG file.", Toast.LENGTH_SHORT).show()
         }
     }
+
+    // Function to open the page to select ID card picture.
+    private fun openIdCardPicker() {
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
+            type = "image/*"
+        }
+        pickIdCardLauncher.launch(intent)
+    }
+
+    // New core functions created for processing ID card images
+    private fun convertIdCardToInk(bitmap: Bitmap): Ink {
+        val originalMat = Mat()
+        Utils.bitmapToMat(bitmap, originalMat)
+
+        // Pre-processing
+        val grayMat = Mat()
+        Imgproc.cvtColor(originalMat, grayMat, Imgproc.COLOR_BGR2GRAY)
+
+        // Use Adaptive Thresholding to better handle uneven lighting.
+        val binaryMat = Mat()
+        adaptiveThreshold(
+            grayMat,
+            binaryMat,
+            255.0,
+            ADAPTIVE_THRESH_GAUSSIAN_C,
+            THRESH_BINARY_INV,
+            11,
+            4.0
+        )
+
+        // Use Morphological Opening to remove noise or small non-textual dots.
+        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+        morphologyEx(binaryMat, binaryMat, MORPH_OPEN, kernel)
+
+        // Find Contours
+        val contours = mutableListOf<MatOfPoint>()
+        val hierarchy = Mat()
+        Imgproc.findContours(
+            binaryMat,
+            contours,
+            hierarchy,
+            RETR_LIST,
+            CHAIN_APPROX_SIMPLE
+        )
+
+        // Convert Contours to Ink
+        val inkBuilder = Ink.builder()
+        contours.forEach { contour ->
+            // Filter out contours that are too small or too large, which are unlikely to be text.
+            val area = Imgproc.contourArea(contour)
+            if (area > 50 && area < 5000) {
+                val strokeBuilder = Ink.Stroke.builder()
+                contour.toList().forEach { point ->
+                    strokeBuilder.addPoint(Ink.Point.create(point.x.toFloat(), point.y.toFloat(), 0))
+                }
+                inkBuilder.addStroke(strokeBuilder.build())
+            }
+        }
+
+        // Release memory
+        originalMat.release()
+        grayMat.release()
+        binaryMat.release()
+        hierarchy.release()
+        contours.forEach { it.release() }
+
+        return inkBuilder.build()
+    }
+
 
     public override fun onResume() {
         super.onResume()
